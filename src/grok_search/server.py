@@ -15,13 +15,13 @@ try:
     from grok_search.providers.grok import GrokSearchProvider
     from grok_search.logger import log_info
     from grok_search.config import config
-    from grok_search.sources import SourcesCache, merge_sources, new_session_id, split_answer_and_sources
+    from grok_search.sources import SourcesCache, merge_sources, new_session_id
     from grok_search.planning import engine as planning_engine, _split_csv
 except ImportError:
     from .providers.grok import GrokSearchProvider
     from .logger import log_info
     from .config import config
-    from .sources import SourcesCache, merge_sources, new_session_id, split_answer_and_sources
+    from .sources import SourcesCache, merge_sources, new_session_id
     from .planning import engine as planning_engine, _split_csv
 
 import asyncio
@@ -116,14 +116,15 @@ def _extra_results_to_sources(
     output_schema=None,
     description="""
     Before using this tool, please use the plan_intent tool to plan the search carefully.
-    Performs a deep web search based on the given query and returns Grok's answer directly.
+    Performs a deep web search via Grok's Responses API with the built-in web_search tool.
 
-    This tool extracts sources if provided by upstream, caches them, and returns:
-    - session_id: string (When you feel confused or curious about the main content, use this field to invoke the get_sources tool to obtain the corresponding list of information sources)
-    - content: string (answer only)
-    - sources_count: int
+    Sources come from upstream `url_citation` annotations and any top-level `citations` field;
+    they are cached and accessible via get_sources(session_id). Returns:
+    - session_id: string (use with get_sources to retrieve the full source list with titles and offsets)
+    - content: string (model output verbatim; may contain inline `[[n]](url)` citation markers emitted by the platform)
+    - sources_count: int (number of unique-URL sources cached)
     """,
-    meta={"version": "2.0.0", "author": "guda.studio"},
+    meta={"version": "2.1.0", "author": "guda.studio"},
 )
 async def web_search(
     query: Annotated[str, "Clear, self-contained natural-language search query."],
@@ -163,12 +164,12 @@ async def web_search(
         elif has_tavily:
             tavily_count = extra_sources
 
-    # 并行执行搜索任务
-    async def _safe_grok() -> str:
+    async def _safe_grok() -> dict:
         try:
             return await grok_provider.search(query, platform)
-        except Exception:
-            return ""
+        except Exception as e:
+            await log_info(None, f"grok search failed: {type(e).__name__}: {e}", config.debug_enabled)
+            return {"text": "", "annotations": [], "citations": [], "usage": {}}
 
     async def _safe_tavily() -> list[dict] | None:
         try:
@@ -192,7 +193,7 @@ async def web_search(
 
     gathered = await asyncio.gather(*coros)
 
-    grok_result: str = gathered[0] or ""
+    grok_result: dict = gathered[0] or {"text": "", "annotations": [], "citations": [], "usage": {}}
     tavily_results: list[dict] | None = None
     firecrawl_results: list[dict] | None = None
     idx = 1
@@ -202,12 +203,38 @@ async def web_search(
     if firecrawl_count > 0:
         firecrawl_results = gathered[idx]
 
-    answer, grok_sources = split_answer_and_sources(grok_result)
+    text = grok_result.get("text", "")
+    annotations = grok_result.get("annotations", []) or []
+    grok_sources: list[dict] = []
+    for a in annotations:
+        if not isinstance(a, dict):
+            continue
+        if a.get("type") != "url_citation":
+            continue
+        url = a.get("url")
+        if not isinstance(url, str) or not url.strip():
+            continue
+        item: dict = {"url": url}
+        title = a.get("title")
+        if isinstance(title, str) and title.strip():
+            item["title"] = title.strip()
+        if isinstance(a.get("start_index"), int):
+            item["start_index"] = a["start_index"]
+        if isinstance(a.get("end_index"), int):
+            item["end_index"] = a["end_index"]
+        grok_sources.append(item)
+
+    citation_sources = [
+        {"url": u}
+        for u in (grok_result.get("citations") or [])
+        if isinstance(u, str) and u.strip()
+    ]
+
     extra = _extra_results_to_sources(tavily_results, firecrawl_results)
-    all_sources = merge_sources(grok_sources, extra)
+    all_sources = merge_sources(grok_sources, citation_sources, extra)
 
     await _SOURCES_CACHE.set(session_id, all_sources)
-    return {"session_id": session_id, "content": answer, "sources_count": len(all_sources)}
+    return {"session_id": session_id, "content": text, "sources_count": len(all_sources)}
 
 
 @mcp.tool(
