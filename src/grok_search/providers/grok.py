@@ -126,8 +126,9 @@ class GrokSearchProvider(BaseSearchProvider):
                 {"role": "system", "content": search_prompt},
                 {"role": "user", "content": time_context + query + platform_prompt},
             ],
-            "tools": [{"type": "web_search"}],
         }
+        if config.web_search_tool_enabled:
+            payload["tools"] = [{"type": "web_search"}]
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

@@ -132,11 +132,17 @@ claude mcp add-json grok-search --scope user '{
 | `FIRECRAWL_API_KEY` | ❌ | - | Firecrawl API 密钥（Tavily 失败时托底） |
 | `FIRECRAWL_API_URL` | ❌ | `https://api.firecrawl.dev/v2` | Firecrawl API 地址 |
 | `GROK_DEBUG` | ❌ | `false` | 调试模式 |
+| `GROK_WEB_SEARCH_TOOL` | ❌ | `true` | 是否在 `/responses` payload 注册 `web_search` 工具（按部署画像配置，不随单次 `model` 切换） |
 | `GROK_LOG_LEVEL` | ❌ | `INFO` | 日志级别 |
 | `GROK_LOG_DIR` | ❌ | `logs` | 日志目录 |
 | `GROK_RETRY_MAX_ATTEMPTS` | ❌ | `3` | 最大重试次数 |
 | `GROK_RETRY_MULTIPLIER` | ❌ | `1` | 重试退避乘数 |
 | `GROK_RETRY_MAX_WAIT` | ❌ | `10` | 重试最大等待秒数 |
+
+> **关于 `GROK_WEB_SEARCH_TOOL`**：部分代理（如 `ai.huan666.de`）在 reasoning 模型路径上**会自动注入** `web_search` 工具，此时客户端再注入会触发 `400 "Multiple web search tools are not supported"`。配置原则：
+> - 官方 `api.x.ai`：保持默认 `true`（否则模型不主动搜索）
+> - 代理 + fast 模型：两种值皆可
+> - 代理 + reasoning 模型：必须 `false`
 
 
 ### 验证安装

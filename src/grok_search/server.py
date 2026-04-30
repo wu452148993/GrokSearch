@@ -118,7 +118,9 @@ def _extra_results_to_sources(
     output_schema=None,
     description="""
     Before using this tool, please use the plan_intent tool to plan the search carefully.
-    Performs a deep web search via Grok's Responses API with the built-in web_search tool.
+    Performs a deep web search via Grok's Responses API. Web search is enabled when
+    the deployment supports it (controlled by the `GROK_WEB_SEARCH_TOOL` env var; some
+    proxies auto-inject the tool server-side and require it disabled here).
 
     Sources come from upstream `url_citation` annotations, any top-level `citations`
     field, and trailing markdown source blocks emitted by the model; they are cached
@@ -127,7 +129,7 @@ def _extra_results_to_sources(
     - content: string (model answer text; trailing source lists may be stripped, but inline `[[n]](url)` citation markers may remain)
     - sources_count: int (number of unique-URL sources cached)
     """,
-    meta={"version": "2.2.0", "author": "guda.studio"},
+    meta={"version": "2.3.0", "author": "guda.studio"},
 )
 async def web_search(
     query: Annotated[str, "Clear, self-contained natural-language search query."],

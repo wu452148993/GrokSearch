@@ -4,12 +4,22 @@ Reads two key sets from env:
   OFFICIAL_GROK_API_URL, OFFICIAL_GROK_API_KEY, OFFICIAL_GROK_MODEL
   PROXY_GROK_API_URL,    PROXY_GROK_API_KEY,    PROXY_GROK_MODEL
 
+Each profile is exercised with both `GROK_WEB_SEARCH_TOOL=true` and `=false`.
+The `web_search_tool_enabled` config property is uncached (`os.getenv` per call),
+so toggling `os.environ` between runs takes effect immediately.
+
+The full 6-row matrix (endpoint x model x flag) requires 2 invocations because
+each profile has only one model env. To cover reasoning + fast variants:
+  PROXY_GROK_MODEL=grok-4.20-fast python tests/manual_responses.py proxy
+  PROXY_GROK_MODEL=grok-4.20-reasoning python tests/manual_responses.py proxy
+
 Run:
   python tests/manual_responses.py official
   python tests/manual_responses.py proxy
   python tests/manual_responses.py both
 
 Prints (does not assert) per query:
+  - flag value (GROK_WEB_SEARCH_TOOL=true|false)
   - HTTP duration
   - len(text), len(annotations), len(citations)
   - first 3 annotations with slice check (text[start_index:end_index])
@@ -43,9 +53,22 @@ def _load_profile(prefix: str) -> dict | None:
     return {"url": url, "key": key, "model": model}
 
 
-async def _run_one(label: str, profile: dict, query_label: str, query: str) -> None:
+async def _run_one(label: str, profile: dict, query_label: str, query: str, flag: str) -> None:
+    prev = os.environ.get("GROK_WEB_SEARCH_TOOL")
+    os.environ["GROK_WEB_SEARCH_TOOL"] = flag
+    try:
+        await _run_one_inner(label, profile, query_label, query, flag)
+    finally:
+        if prev is None:
+            os.environ.pop("GROK_WEB_SEARCH_TOOL", None)
+        else:
+            os.environ["GROK_WEB_SEARCH_TOOL"] = prev
+
+
+async def _run_one_inner(label: str, profile: dict, query_label: str, query: str, flag: str) -> None:
     print(f"\n{'=' * 70}")
     print(f"[{label}] model={profile['model']} url={profile['url']}")
+    print(f"[{label}] GROK_WEB_SEARCH_TOOL={flag}")
     print(f"[{label}] query ({query_label}): {query}")
     print(f"{'=' * 70}")
 
@@ -92,8 +115,9 @@ async def _run_one(label: str, profile: dict, query_label: str, query: str) -> N
 
 
 async def _run_profile(label: str, profile: dict) -> None:
-    for query_label, query in QUERIES:
-        await _run_one(label, profile, query_label, query)
+    for flag in ("true", "false"):
+        for query_label, query in QUERIES:
+            await _run_one(label, profile, query_label, query, flag)
 
 
 async def main() -> None:

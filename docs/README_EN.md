@@ -132,6 +132,7 @@ You can also configure additional environment variables in the `env` field:
 | `FIRECRAWL_API_KEY` | No | `{GUDA_API_KEY}` | Firecrawl API key (fallback when Tavily fails) |
 | `FIRECRAWL_API_URL` | No | `{GUDA_BASE_URL}/firecrawl` | Firecrawl API endpoint |
 | `GROK_DEBUG` | No | `false` | Debug mode |
+| `GROK_WEB_SEARCH_TOOL` | No | `true` | Whether to register `web_search` tool in `/responses` payload (per-deployment, not per-call `model` override) |
 | `GROK_LOG_LEVEL` | No | `INFO` | Log level |
 | `GROK_LOG_DIR` | No | `logs` | Log directory |
 | `GROK_RETRY_MAX_ATTEMPTS` | No | `3` | Max retry attempts |
@@ -139,6 +140,11 @@ You can also configure additional environment variables in the `env` field:
 | `GROK_RETRY_MAX_WAIT` | No | `10` | Max retry wait in seconds |
 
 > **Note**: When `GUDA_API_KEY` is set, all `GROK_API_URL`/`GROK_API_KEY`/`TAVILY_*`/`FIRECRAWL_*` variables become optional as they are auto-derived from `GUDA_BASE_URL`. Explicitly set variables take higher priority.
+
+> **About `GROK_WEB_SEARCH_TOOL`**: Some proxies (e.g. `ai.huan666.de`) auto-inject the `web_search` tool server-side on reasoning models; client-side injection then triggers `400 "Multiple web search tools are not supported"`. Configuration guide:
+> - Official `api.x.ai`: keep default `true` (otherwise the model won't search proactively)
+> - Proxy + fast model: either value works
+> - Proxy + reasoning model: must be `false`
 
 
 ### Verify Installation

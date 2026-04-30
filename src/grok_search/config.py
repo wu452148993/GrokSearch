@@ -88,6 +88,10 @@ class Config:
         return os.getenv("TAVILY_ENABLED", "true").lower() in ("true", "1", "yes")
 
     @property
+    def web_search_tool_enabled(self) -> bool:
+        return os.getenv("GROK_WEB_SEARCH_TOOL", "true").lower() in ("true", "1", "yes")
+
+    @property
     def tavily_api_url(self) -> str:
         return os.getenv("TAVILY_API_URL", "https://api.tavily.com")
 
@@ -184,6 +188,7 @@ class Config:
             "GROK_API_KEY": api_key_masked,
             "GROK_MODEL": self.grok_model,
             "GROK_DEBUG": self.debug_enabled,
+            "GROK_WEB_SEARCH_TOOL": self.web_search_tool_enabled,
             "GROK_LOG_LEVEL": self.log_level,
             "GROK_LOG_DIR": str(self.log_dir),
             "TAVILY_API_URL": self.tavily_api_url,
