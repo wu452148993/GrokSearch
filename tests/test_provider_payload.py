@@ -25,10 +25,11 @@ class _DummyResponse:
 
 
 class _PayloadCapture:
-    """Captures the JSON payload sent to httpx.AsyncClient.post."""
+    """Captures the JSON payload and headers sent to httpx.AsyncClient.post."""
 
     def __init__(self):
         self.payload: dict | None = None
+        self.headers = None
 
     async def __aenter__(self):
         return self
@@ -38,6 +39,7 @@ class _PayloadCapture:
 
     async def post(self, url, headers=None, json=None):
         self.payload = json
+        self.headers = headers
         return _DummyResponse(json or {})
 
 
@@ -122,3 +124,62 @@ def test_get_config_info_flag_present_when_api_unset(monkeypatch):
     info = config.get_config_info()
     assert "GROK_WEB_SEARCH_TOOL" in info
     assert info["GROK_WEB_SEARCH_TOOL"] is False
+
+
+_DEFAULT_HEADERS = {
+    "Authorization": "Bearer k",
+    "Content-Type": "application/json",
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("env", [None, "", "   "])
+async def test_extra_headers_unset_or_empty_keeps_default_headers(monkeypatch, capture, env):
+    if env is None:
+        monkeypatch.delenv("GROK_EXTRA_HEADERS", raising=False)
+    else:
+        monkeypatch.setenv("GROK_EXTRA_HEADERS", env)
+    provider = GrokSearchProvider("https://example.invalid", "k", "grok-4-fast")
+    await provider.search("hello")
+    assert capture.headers == _DEFAULT_HEADERS
+
+
+@pytest.mark.asyncio
+async def test_extra_headers_valid_json_merged(monkeypatch, capture):
+    monkeypatch.setenv(
+        "GROK_EXTRA_HEADERS",
+        '{"x-opencode-session":"abc-123","User-Agent":"GrokSearch/2.3"}',
+    )
+    provider = GrokSearchProvider("https://example.invalid", "k", "grok-4-fast")
+    await provider.search("hello")
+    assert capture.headers == {
+        **_DEFAULT_HEADERS,
+        "x-opencode-session": "abc-123",
+        "User-Agent": "GrokSearch/2.3",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "env",
+    ["{not-json", "[1,2]", '"str"', '{"x-opencode-session":123}', '{"x":null}'],
+)
+async def test_extra_headers_invalid_ignored(monkeypatch, capture, env):
+    monkeypatch.setenv("GROK_EXTRA_HEADERS", env)
+    provider = GrokSearchProvider("https://example.invalid", "k", "grok-4-fast")
+    await provider.search("hello")
+    assert capture.headers == _DEFAULT_HEADERS
+
+
+@pytest.mark.asyncio
+async def test_extra_headers_override_case_insensitive(monkeypatch, capture):
+    """Case-variant extras replace the default and dedup among themselves (last wins)."""
+    monkeypatch.setenv(
+        "GROK_EXTRA_HEADERS",
+        '{"authorization":"Bearer other","Authorization":"Bearer winner"}',
+    )
+    provider = GrokSearchProvider("https://example.invalid", "k", "grok-4-fast")
+    await provider.search("hello")
+    variants = [k.lower() for k, _ in capture.headers.multi_items() if k.lower() == "authorization"]
+    assert variants == ["authorization"]
+    assert capture.headers["Authorization"] == "Bearer winner"

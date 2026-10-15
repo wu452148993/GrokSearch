@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from pathlib import Path
 
 class Config:
@@ -90,6 +91,22 @@ class Config:
     @property
     def web_search_tool_enabled(self) -> bool:
         return os.getenv("GROK_WEB_SEARCH_TOOL", "true").lower() in ("true", "1", "yes")
+
+    @property
+    def extra_headers(self) -> dict:
+        raw = os.getenv("GROK_EXTRA_HEADERS", "").strip()
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, RecursionError):
+            parsed = None
+        if not isinstance(parsed, dict) or not all(isinstance(v, str) for v in parsed.values()):
+            logging.getLogger("grok_search").warning(
+                "GROK_EXTRA_HEADERS must be a JSON object of string values; ignored"
+            )
+            return {}
+        return parsed
 
     @property
     def tavily_api_url(self) -> str:

@@ -126,6 +126,7 @@ claude mcp add-json grok-search --scope user '{
 | `GROK_API_URL` | ✅ | - | Grok API 地址（OpenAI 兼容格式） |
 | `GROK_API_KEY` | ✅ | - | Grok API 密钥 |
 | `GROK_MODEL` | ❌ | `grok-4-fast` | 默认模型（设置后优先于 `~/.config/grok-search/config.json`） |
+| `GROK_EXTRA_HEADERS` | ❌ | `{}` | 附加到 Grok API 请求的额外请求头（JSON 对象字符串，值必须全为字符串；非法时忽略并记录警告）。用于有会话头要求的网关，如 `'{"x-opencode-session":"<uuid>","User-Agent":"GrokSearch/2.3"}'` |
 | `TAVILY_API_KEY` | ❌ | - | Tavily API 密钥（用于 web_fetch / web_map） |
 | `TAVILY_API_URL` | ❌ | `https://api.tavily.com` | Tavily API 地址 |
 | `TAVILY_ENABLED` | ❌ | `true` | 是否启用 Tavily |

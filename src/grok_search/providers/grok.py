@@ -129,10 +129,12 @@ class GrokSearchProvider(BaseSearchProvider):
         }
         if config.web_search_tool_enabled:
             payload["tools"] = [{"type": "web_search"}]
-        headers = {
+        headers = httpx.Headers({
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-        }
+        })
+        for name, value in config.extra_headers.items():
+            headers[name] = value
 
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=None)
         endpoint = f"{self.api_url.rstrip('/')}/responses"
